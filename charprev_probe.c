@@ -1,86 +1,50 @@
 #include <windows.h>
 #include <stdio.h>
-#include <stdint.h>
 
-static DWORD last_exception;
+static unsigned int failures;
 
-static int record_exception(DWORD code)
+static void check_ptr(const char *name, char *got, char *expected)
 {
-    last_exception = code;
-    return EXCEPTION_EXECUTE_HANDLER;
-}
-
-static long long delta_from(char *ptr, char *base)
-{
-    return (long long)((intptr_t)(uintptr_t)ptr - (intptr_t)(uintptr_t)base);
-}
-
-static void print_result(const char *name, char *ret, char *base)
-{
-    if (!ret)
+    if (got != expected)
     {
-        printf("%s: returned NULL\n", name);
-        return;
+        printf("FAIL %s: got %p, expected %p\n", name, (void *)got, (void *)expected);
+        failures++;
     }
-
-    printf("%s: returned %p, delta_from_base=%lld\n", name, (void *)ret, delta_from(ret, base));
-}
-
-static void probe_CharPrevA(const char *name, char *start, char *current, char *base)
-{
-    char *ret;
-
-    printf("%s: start_delta=%lld current_delta=%lld\n", name,
-           start ? delta_from(start, base) : -9999, current ? delta_from(current, base) : -9999);
-
-    last_exception = 0;
-    __try
+    else
     {
-        ret = CharPrevA(start, current);
-        print_result(name, ret, base);
-    }
-    __except (record_exception(GetExceptionCode()))
-    {
-        printf("%s: exception 0x%08lx\n", name, (unsigned long)last_exception);
-    }
-}
-
-static void probe_CharPrevExA(const char *name, WORD cp, char *start, char *current, char *base)
-{
-    char *ret;
-
-    printf("%s: cp=%u start_delta=%lld current_delta=%lld\n", name, cp,
-           start ? delta_from(start, base) : -9999, current ? delta_from(current, base) : -9999);
-
-    last_exception = 0;
-    __try
-    {
-        ret = CharPrevExA(cp, start, current, 0);
-        print_result(name, ret, base);
-    }
-    __except (record_exception(GetExceptionCode()))
-    {
-        printf("%s: exception 0x%08lx\n", name, (unsigned long)last_exception);
+        printf("PASS %s: got %p\n", name, (void *)got);
     }
 }
 
 int main(void)
 {
-    char ascii[] = "abc";
-    char dbcs[] = "\x82\xa0" "Z"; /* CP932: one 2-byte char, then Z */
+    char str[] = "abc";
+    char *ret;
 
-    probe_CharPrevA("CharPrevA ascii valid", ascii, ascii + 2, ascii);
-    probe_CharPrevA("CharPrevA ascii null start +1", NULL, ascii + 1, ascii);
-    probe_CharPrevA("CharPrevA ascii null start +2", NULL, ascii + 2, ascii);
-    probe_CharPrevA("CharPrevA ascii null start +0", NULL, ascii, ascii);
+    ret = CharPrevA(str, str + 2);
+    check_ptr("CharPrevA(str, str + 2)", ret, str + 1);
 
-    probe_CharPrevExA("CharPrevExA ACP ascii valid", CP_ACP, ascii, ascii + 2, ascii);
-    probe_CharPrevExA("CharPrevExA ACP ascii null start +1", CP_ACP, NULL, ascii + 1, ascii);
-    probe_CharPrevExA("CharPrevExA ACP ascii null start +2", CP_ACP, NULL, ascii + 2, ascii);
-    probe_CharPrevExA("CharPrevExA ACP ascii null start +0", CP_ACP, NULL, ascii, ascii);
+    ret = CharPrevA(str, str);
+    check_ptr("CharPrevA(str, str)", ret, str);
 
-    probe_CharPrevExA("CharPrevExA 932 dbcs valid", 932, dbcs, dbcs + 2, dbcs);
-    probe_CharPrevExA("CharPrevExA 932 dbcs null start +2", 932, NULL, dbcs + 2, dbcs);
+    ret = CharPrevA(NULL, str + 1);
+    check_ptr("CharPrevA(NULL, str + 1)", ret, str);
 
+    ret = CharPrevA(NULL, str + 2);
+    check_ptr("CharPrevA(NULL, str + 2)", ret, str + 1);
+
+    ret = CharPrevExA(CP_ACP, NULL, str + 1, 0);
+    check_ptr("CharPrevExA(CP_ACP, NULL, str + 1, 0)", ret, str);
+
+    ret = CharPrevExA(CP_ACP, NULL, str + 2, 0);
+    check_ptr("CharPrevExA(CP_ACP, NULL, str + 2, 0)", ret, str + 1);
+
+    if (failures)
+    {
+        printf("v3 CharPrev native behavior check failed: %u failure(s)\n", failures);
+        return 1;
+    }
+
+    printf("v3 CharPrev native behavior check passed\n");
     return 0;
 }
