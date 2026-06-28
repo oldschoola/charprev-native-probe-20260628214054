@@ -1,0 +1,24 @@
+name: charprev-native-probe
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build probe
+        shell: cmd
+        run: cl /nologo /W4 /WX charprev_probe.c user32.lib
+
+      - name: Run probe
+        shell: cmd
+        run: charprev_probe.exe
