@@ -67,7 +67,7 @@ static void probe_CharPrevExA(const char *name, WORD cp, char *start, char *curr
 int main(void)
 {
     char ascii[] = "abc";
-    char dbcs[] = { (char)0x82, (char)0xa0, 'Z', 0 }; /* CP932: one 2-byte char, then Z */
+    char dbcs[] = "\x82\xa0" "Z"; /* CP932: one 2-byte char, then Z */
 
     probe_CharPrevA("CharPrevA ascii valid", ascii, ascii + 2, ascii);
     probe_CharPrevA("CharPrevA ascii null start +1", NULL, ascii + 1, ascii);
