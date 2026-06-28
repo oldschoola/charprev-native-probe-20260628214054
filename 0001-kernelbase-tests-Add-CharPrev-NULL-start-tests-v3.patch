@@ -1,0 +1,136 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: James M <f0rm4tm3@gmail.com>
+Date: Sun, 28 Jun 2026 14:58:00 -0700
+Subject: [PATCH v3 1/2] kernelbase/tests: Add tests for CharPrevA NULL start.
+
+Native Windows does not return NULL for the tested NULL-start cases.
+It returns the previous character pointer. Add tests for CharPrevA()
+and CharPrevExA() with a NULL start pointer and an in-bounds current
+pointer, wrapping those calls so current Wine reports a clean failure
+instead of crashing the whole test process.
+---
+ dlls/kernelbase/tests/Makefile.in |  3 +-
+ dlls/kernelbase/tests/string.c    | 95 +++++++++++++++++++++++++++++++
+ 2 files changed, 97 insertions(+), 1 deletion(-)
+ create mode 100644 dlls/kernelbase/tests/string.c
+
+diff --git a/dlls/kernelbase/tests/Makefile.in b/dlls/kernelbase/tests/Makefile.in
+index 5362d96..df1dda1 100644
+--- a/dlls/kernelbase/tests/Makefile.in
++++ b/dlls/kernelbase/tests/Makefile.in
+@@ -7,4 +7,5 @@ SOURCES = \
+ 	process.c \
+ 	rsrc.rc \
+ 	security.c \
+-	sync.c
++	sync.c \
++	string.c
+diff --git a/dlls/kernelbase/tests/string.c b/dlls/kernelbase/tests/string.c
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/dlls/kernelbase/tests/string.c
+@@ -0,0 +1,95 @@
++/*
++ * Copyright 2026 James M
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#include <stdarg.h>
++
++#include "windef.h"
++#include "winbase.h"
++#include "winnls.h"
++#include "winuser.h"
++#include "wine/exception.h"
++#include "wine/test.h"
++
++static LPSTR call_CharPrevA(const char *start, const char *ptr, BOOL *got_exception)
++{
++    LPSTR ret = NULL;
++
++    *got_exception = FALSE;
++    __TRY
++    {
++        ret = CharPrevA(start, ptr);
++    }
++    __EXCEPT_PAGE_FAULT
++    {
++        *got_exception = TRUE;
++    }
++    __ENDTRY
++
++    return ret;
++}
++
++static LPSTR call_CharPrevExA(WORD codepage, const char *start, const char *ptr, DWORD flags,
++        BOOL *got_exception)
++{
++    LPSTR ret = NULL;
++
++    *got_exception = FALSE;
++    __TRY
++    {
++        ret = CharPrevExA(codepage, start, ptr, flags);
++    }
++    __EXCEPT_PAGE_FAULT
++    {
++        *got_exception = TRUE;
++    }
++    __ENDTRY
++
++    return ret;
++}
++
++static void test_CharPrev(void)
++{
++    static char str[] = "abc";
++    BOOL got_exception;
++    LPSTR ret;
++
++    ret = CharPrevA(str, str + 2);
++    ok(ret == str + 1, "got %p, expected %p\n", ret, str + 1);
++
++    ret = CharPrevA(str, str);
++    ok(ret == str, "got %p, expected %p\n", ret, str);
++
++    ret = call_CharPrevA(NULL, str + 1, &got_exception);
++    ok(!got_exception, "CharPrevA(NULL, str + 1) raised an exception\n");
++    if (!got_exception)
++        ok(ret == str, "got %p, expected %p\n", ret, str);
++
++    ret = call_CharPrevA(NULL, str + 2, &got_exception);
++    ok(!got_exception, "CharPrevA(NULL, str + 2) raised an exception\n");
++    if (!got_exception)
++        ok(ret == str + 1, "got %p, expected %p\n", ret, str + 1);
++
++    ret = call_CharPrevExA(CP_ACP, NULL, str + 1, 0, &got_exception);
++    ok(!got_exception, "CharPrevExA(CP_ACP, NULL, str + 1, 0) raised an exception\n");
++    if (!got_exception)
++        ok(ret == str, "got %p, expected %p\n", ret, str);
++
++    ret = call_CharPrevExA(CP_ACP, NULL, str + 2, 0, &got_exception);
++    ok(!got_exception, "CharPrevExA(CP_ACP, NULL, str + 2, 0) raised an exception\n");
++    if (!got_exception)
++        ok(ret == str + 1, "got %p, expected %p\n", ret, str + 1);
++}
++
++START_TEST(string)
++{
++    test_CharPrev();
++}
+-- 
+2.54.0
